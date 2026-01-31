@@ -7,11 +7,9 @@ FOO_DB = db
 --- @class OhnoBloodlust: AddonCore
 local addon = select(2, ...)
 
-local category = Settings.RegisterVerticalLayoutCategory(addonName)
-
 local module = {}
 
-function module:CreateDropdown(category)
+function module:CreateDropdownA(category)
     local function GetValue()
         if db.dropdown == "ALPHA" then
             return 1
@@ -101,11 +99,50 @@ function module:CreateSlider(category)
     options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, FormatPercentage)
 
     local initializer = Settings.CreateSlider(category, setting, options, "Some tooltip for slider")
-
 end
 
-module:CreateDropdown(category)
-module:CreateCheckbox(category)
-module:CreateSlider(category)
+local category = Settings.RegisterVerticalLayoutCategory(addonName)
+
+local soundPicker = {
+    {key = "NONE", name = "None"},
+    {key = "CUSTOM", name = "Custom"},
+    default = "CUSTOM",
+}
+
+function module:CreateDropdown(category, options, proxy_key, label, tooltip)
+    local function GetValue()
+        return db.soundOption and db.soundOption or options.default
+    end
+
+    local function SetValue(value)
+        db.soundOption = value
+    end
+
+    local function GetOptions()
+        local container = Settings.CreateControlTextContainer()
+        for _, opts in ipairs(soundPicker) do
+            container:Add(opts.key, opts.name)
+        end
+        return container:GetData()
+    end
+
+    local defaultValue = options.default
+    local setting = Settings.RegisterProxySetting(
+        category,
+        string.format("%s_PROXY_%s", string.upper(addonName), proxy_key),
+        Settings.VarType.String,
+        label,
+        defaultValue,
+        GetValue,
+        SetValue)
+    Settings.CreateDropdown(category, setting, GetOptions, tooltip)
+end
+
+module:CreateDropdown(category, soundPicker, "SOUND_FILE", "Play sound when Bloodlust detected",
+    "Custom sounds should be placed in Interface/Sounds/WA/jump-bloodlust.ogg to work with the Custom option") 
+
+--module:CreateDropdownA(category)
+--module:CreateCheckbox(category)
+--module:CreateSlider(category)
 
 Settings.RegisterAddOnCategory(category)

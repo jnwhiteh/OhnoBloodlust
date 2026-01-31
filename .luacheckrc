@@ -13,5 +13,9 @@ ignore = {
 	"1/[A-Z][A-Z][A-Z0-9_]+", -- three letter+ constants
 }
 globals = {
+    "FormatPercentage",
+    "MinimalSliderWithSteppersMixin",
+    "PlaySoundFile",
     "Settings",
+    "UnitSpellHaste",
 }
