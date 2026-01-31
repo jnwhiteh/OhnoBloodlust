@@ -24,10 +24,8 @@ jobs:
           args: "--no-color -q"
           annotate: warning
 
-      - name: Create all release versions
+      - name: Create release versions
         uses: BigWigsMods/packager@master
-        with:
-          args: -S
         env:
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
 
