@@ -4,6 +4,7 @@
 ## Version: @project-version@
 ## Notes: Plays a configurable sound when someone casts bloodlusts
 ## SavedVariables: OhnoBloodlustDB
+## IconTexture: 3860695
 
 ## X-Localizations: enUS, enGB
 ## X-CompatibleLocales: enUS, enGB
