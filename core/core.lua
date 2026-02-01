@@ -75,6 +75,7 @@ function addon:Enable()
     self:SetupOptions()
     self:RegisterEvent("COMBAT_RATING_UPDATE", "UpdateHasteRating")
     self:RegisterEvent("UNIT_SPELL_HASTE", "UpdateHasteRating")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "ResetHasteAndBloodlust")
 
     self.bloodlustActive = false
 
@@ -165,6 +166,11 @@ function addon:UpdateHasteRating()
     v[3] = v[4]
     v[4] = v[5]
     v[5] = current
+end
+
+function addon:ResetHasteAndBloodlust()
+    self.bloodlustActive = false
+    self.lockedBaseline = nil
 end
 
 function addon:PlayConfiguredSoundAndChannel()
