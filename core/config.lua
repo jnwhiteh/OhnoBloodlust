@@ -1,148 +1,216 @@
 local addonName = ...
 
-local db = {}
-
-FOO_DB = db
-
 --- @class OhnoBloodlust: AddonCore
 local addon = select(2, ...)
+local L = addon.L
 
-local module = {}
+local strsplit = strsplit
 
-function module:CreateDropdownA(category)
-    local function GetValue()
-        if db.dropdown == "ALPHA" then
-            return 1
-        elseif db.dropdown == "BETA" then
-            return 2
-        elseif db.dropdown == "GAMMA" then
-            return 3
-        else
-            return 2
+local function getValueFromAddonProfile(profilePath)
+    return function()
+        local profile = addon.db.profile
+        local current = profile
+
+        local path = {strsplit(".", profilePath)}
+        for _, key in ipairs(path) do
+            current = current[key]
+            if current == nil then
+                addon:Printf("Could not get settings key '%s' in path '%s'", tostring(key), tostring(profilePath))
+            end
         end
+        return current
     end
-
-    local function SetValue(value)
-        if value == 1 then
-            db.dropdown = "ALPHA"
-        elseif value == 2 then
-            db.dropdown = "BETA"
-        elseif value == 3 then
-            db.dropdown = "GAMMA"
-        end
-    end
-
-    local function GetOptions()
-        local container = Settings.CreateControlTextContainer()
-        container:Add(1, "Alpha")
-        container:Add(2, "Beta")
-        container:Add(3, "Gamma")
-        return container:GetData()
-    end
-
-    local defaultValue = 2
-    local setting = Settings.RegisterProxySetting(
-        category,
-        string.format("%s_PROXY_%s", string.upper(addonName), "DROPDOWN_ALPHA"),
-        Settings.VarType.Number,
-        "Dropdown alpha beta gamma",
-        defaultValue,
-        GetValue,
-        SetValue)
-    Settings.CreateDropdown(category, setting, GetOptions, "Tooltip for alpha beta gamma dropdown")
 end
 
-function module:CreateCheckbox(category)
+local function setValueInAddonProfile(profilePath)
+    return function(value)
+        local profile = addon.db.profile
+        local current = profile
 
-    local function GetValue()
-        return not not db.checkbox
-    end
+        local path = {strsplit(".", profilePath)}
+        for idx = 1, #path - 1 do
+            current = current[path[idx]]
+            if current == nil then
+                addon:Printf("Could not set settings key '%s' in path '%s'", tostring(path[idx]), tostring(profilePath))
+            end
+        end
 
-    local function SetValue(value)
-        db.checkbox = not not value
+        -- We're at the last step of the chain here
+        local lastKey = path[#path]
+        current[lastKey] = value
     end
-    local defaultValue = false
+end
+
+local function createCheckbox(category, proxyKey, profilePath, defaultValue, name, tooltip)
+    local getValue = getValueFromAddonProfile(profilePath)
+    local setValue = setValueInAddonProfile(profilePath)
     local setting = Settings.RegisterProxySetting(
         category,
-        string.format("%s_PROXY_%s", string.upper(addonName), "CHECKBOX"),
+        string.format("%s_PROXY_%s", string.upper(addonName), proxyKey),
         Settings.VarType.Boolean,
-        "Checkbox control",
+        name,
         defaultValue,
-        GetValue,
-        SetValue)
-    Settings.CreateCheckbox(category, setting, "Tooltip for the dropdown")
+        getValue,
+        setValue)
+    Settings.CreateCheckbox(category, setting, tooltip)
 end
 
-function module:CreateSlider(category)
-    local max = 3.0
-    local default = 1.5
+local function FormatScaledPercentage(value)
+    return FormatPercentage(value / 100)
+end
 
-    local function GetValue()
-        return db.slider and db.slider or default
-    end
-
-    local function SetValue(value)
-        db.slider = value
-    end 
-
+local function createSlider(category, proxyKey, profilePath, defaultValue, minValue, maxValue, step, name, tooltip)
+    local getValue = getValueFromAddonProfile(profilePath)
+    local setValue = setValueInAddonProfile(profilePath)
     local setting = Settings.RegisterProxySetting(
         category,
-        "PROXY_OHNOBLOODLUST_SLIDER",
+        string.format("%s_PROXY_%s", string.upper(addonName), proxyKey),
         Settings.VarType.Number,
-        "Slider control",
-        default,
-        GetValue,
-        SetValue)
+        name,
+        defaultValue,
+        getValue,
+        setValue)
 
-    local minValue, maxValue, step = 0, max, 0.01
     local options = Settings.CreateSliderOptions(minValue, maxValue, step)
-    options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, FormatPercentage)
-
-    local initializer = Settings.CreateSlider(category, setting, options, "Some tooltip for slider")
+    options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, FormatScaledPercentage)
+    Settings.CreateSlider(category, setting, options, tooltip)
 end
 
-local category = Settings.RegisterVerticalLayoutCategory(addonName)
-
-local soundPicker = {
-    {key = "NONE", name = "None"},
-    {key = "CUSTOM", name = "Custom"},
-    default = "CUSTOM",
-}
-
-function module:CreateDropdown(category, options, proxy_key, label, tooltip)
-    local function GetValue()
-        return db.soundOption and db.soundOption or options.default
-    end
-
-    local function SetValue(value)
-        db.soundOption = value
-    end
+local function createDropdown(category, proxyKey, profilePath, defaultValue, values, name, tooltip)
+    local getValue = getValueFromAddonProfile(profilePath)
+    local setValue = setValueInAddonProfile(profilePath)
 
     local function GetOptions()
         local container = Settings.CreateControlTextContainer()
-        for _, opts in ipairs(soundPicker) do
+        for _, opts in ipairs(values) do
             container:Add(opts.key, opts.name)
         end
         return container:GetData()
     end
 
-    local defaultValue = options.default
     local setting = Settings.RegisterProxySetting(
         category,
-        string.format("%s_PROXY_%s", string.upper(addonName), proxy_key),
+        string.format("%s_PROXY_%s", string.upper(addonName), proxyKey),
         Settings.VarType.String,
-        label,
+        name,
         defaultValue,
-        GetValue,
-        SetValue)
+        getValue,
+        setValue)
     Settings.CreateDropdown(category, setting, GetOptions, tooltip)
 end
 
-module:CreateDropdown(category, soundPicker, "SOUND_FILE", "Play sound when Bloodlust detected",
-    "Custom sounds should be placed in Interface/Sounds/WA/jump-bloodlust.ogg to work with the Custom option") 
+--[[-------------------------------------------------------------------
+-- Create addon options
+-------------------------------------------------------------------]]--
 
---module:CreateDropdownA(category)
---module:CreateCheckbox(category)
---module:CreateSlider(category)
+function addon:SetupOptions()
+    local category = Settings.RegisterVerticalLayoutCategory(addonName)
 
-Settings.RegisterAddOnCategory(category)
+    createCheckbox(
+        category,
+        "ENABLED",
+        "enabled",
+        addon.defaults.profile.enabled,
+        L["Enable Bloodlust detection"],
+        L["Turns on the detection of Bloodlust-like effects on your character and playing of custom sounds"]
+    )
+
+    createCheckbox(
+        category,
+        "CHAT",
+        "chat",
+        addon.defaults.profile.chat,
+        L["Show bloodlust detection messages in chat"],
+        L["A message will be shown in chat when the addon detects a Bloodlist-like effect and when it fades"]
+    )
+
+    createCheckbox(
+        category,
+        "DEBUG",
+        "debug",
+        addon.defaults.profile.debug,
+        L["Show debug messages in chat"],
+        L["A message will be shown every time the player's haste rating changes, this can be spammy"]
+    )
+
+    createSlider(
+        category,
+        "SPIKE_RATIO",
+        "detection.spike_ratio",
+        addon.defaults.profile.detection.spike_ratio,
+        140,
+        240,
+        1.0,
+        L["Bloodlust detection spike ratio"],
+        L["This option specifies the ratio against baseline to detect the use of Bloodlust-like effects. Setting it lower will trigger more often on other types of effects, like Power Infusion.\n\nDefault value: %s"]:format(tostring(addon.defaults.profile.detection.spike_ratio))
+    )
+
+    createSlider(
+        category,
+        "JUMP_RATIO",
+        "detection.jump_ratio",
+        addon.defaults.profile.detection.jump_ratio,
+        110,
+        160,
+        1.0,
+        L["Haste jump/spike ratio"],
+        L["This ratio can prevent gradual haste increases from triggering detection.\n\nDefault value: %s"]:format(tostring(addon.defaults.profile.detection.jump_ratio))
+    )
+
+    createSlider(
+        category,
+        "FADE_RATIO",
+        "detection.fade_ratio",
+        addon.defaults.profile.detection.fade_ratio,
+        105,
+        130,
+        1.0,
+        L["Fade ratio"],
+        L["This option specifies how close to normal your haste must return before the Bloodlust-like event is considered over.\n\nDefault value: %s"]:format(tostring(addon.defaults.profile.detection.fade_ratio))
+    )
+
+    local soundOptions = {}
+    for key, opts in pairs(self.soundRegistry) do
+        table.insert(soundOptions, {key = key, name = opts.name})
+    end
+
+    table.sort(soundOptions, function(a, b) return a.name < b.name end)
+
+    createDropdown(
+        category,
+        "SOUND_FILE",
+        "sound",
+        addon.defaults.profile.sound,
+        soundOptions,
+        L["Sound to play"],
+        L["The sound to play when a Bloodlust-like effect is detected. The supplied soundfiles were created with Suno and are commercially licensed to the Addon author.\n\nFor the 'Custom' option, the file must be placed in Interface\\Sounds\\bloodlust.ogg"]
+    )
+
+    -- Sound channels
+    local soundChannels = {}
+    for key, name in pairs(self.channelRegistry) do
+        table.insert(soundChannels, {key = key, name = name})
+    end
+
+    table.sort(soundChannels, function(a, b) return a.name < b.name end)
+
+    createDropdown(
+        category,
+        "SOUND_CHANNEL",
+        "channel",
+        addon.defaults.profile.channel,
+        soundChannels,
+        L["Sound channel to use"],
+        L["The sound channel to use when playing the sound. The volume of the sound will be affected your sound options for that channel."]
+    )
+
+    -- Create a button to preview the selected sound on the selected channel
+    local function OnButtonClick()
+        addon:PlayConfiguredSoundAndChannel()
+    end
+
+    local initializer = CreateSettingsButtonInitializer(L["Preview sound"], L["Preview sound"], OnButtonClick, L["Preview the selected sound file on the selected channel"], false)
+    Settings.RegisterInitializer(category, initializer)
+
+    Settings.RegisterAddOnCategory(category)
+end

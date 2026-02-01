@@ -1,5 +1,13 @@
 {
   "Lua.diagnostics.globals": [
-    "Settings"
+    "CreateSettingsButtonInitializer",
+    "FormatPercentage",
+    "LibStub",
+    "MinimalSliderWithSteppersMixin",
+    "PlaySoundFile",
+    "Settings",
+    "StopSound",
+    "UnitSpellHaste",
+    "strsplit"
   ]
 }

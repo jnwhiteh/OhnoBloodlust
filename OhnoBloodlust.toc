@@ -9,6 +9,8 @@
 ## X-CompatibleLocales: enUS, enGB
 
 libs\AddonCore.lua
+libs\AceDB-3.0\AceDB-3.0.lua
+
 i18n\Localization.enUS.lua
 
 core\core.lua
