@@ -143,7 +143,7 @@ function addon:UpdateHasteRating()
     -- STOP detection
     if self.bloodlustActive then
         local ratio = current / self.lockedBaseline
-        local fade_ratio = options.fade_ratio / 100
+        local fade_ratio = options.detection.fade_ratio / 100
 
         if ratio < fade_ratio then
             if options.chat then
