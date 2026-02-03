@@ -76,11 +76,61 @@ function addon:Enable()
     self:RegisterEvent("COMBAT_RATING_UPDATE", "UpdateHasteRating")
     self:RegisterEvent("UNIT_SPELL_HASTE", "UpdateHasteRating")
     self:RegisterEvent("PLAYER_REGEN_ENABLED", "ResetHasteAndBloodlust")
+    self:RegisterUnitEvent("UNIT_AURA", "UNIT_AURA", "player")
 
-    self.bloodlustActive = false
+    self.maybeHasteDetected = false
+    self.maybeSatedDetected = false
 
     self:SetHasteBaseline()
     self:UpdateHasteRating()
+    self:CreateTimerFrame()
+end
+
+function addon:CreateTimerFrame()
+    if self.timerFrame then return end
+
+    self.timerFrame = CreateFrame("Frame")
+    self.timerFrame:Hide()
+    self.timerFrame:SetScript("OnUpdate", addon.timerOnUpdate)
+    self.timerFrame.window = 1.5
+end
+
+function addon.timerOnUpdate(self, elapsed)
+    self.elapsed = self.elapsed + elapsed
+    self.total = self.total + elapsed
+
+    if self.elapsed < 0.1 then
+        return
+    else
+        self.elapsed = 0
+    end
+
+    if addon.maybeHasteDetected and addon.maybeSatedDetected then
+        addon:Printf("Bloodlust detected!")
+
+        addon.bloodlustActive = true
+		addon:PlayConfiguredSoundAndChannel()
+        addon:StopWatching()
+    elseif self.total > 2.0 then
+        addon:Printf("Didn't get a lust in 2.0 seconds, clearing things")
+        addon:StopWatching()
+    end
+end
+
+function addon:StartWatching()
+    if addon.timerFrame:IsShown() then
+        return
+    else
+        addon.timerFrame.elapsed = 0
+        addon.timerFrame.total = 0
+        addon.timerFrame:Show()
+    end
+end
+
+function addon:StopWatching()
+    addon.timerFrame:Hide()
+    addon.maybeHasteDetected = false
+    addon.maybeSatedDetected = false
 end
 
 function addon:SetHasteBaseline()
@@ -96,7 +146,7 @@ local function mean(v)
     return sum / 5
 end
 
-function addon:IsBloodlust(v, current)
+function addon:IsMaybeBloodlust(v, current)
     local options = self.db.profile.detection
     local m = mean(v)
 
@@ -121,23 +171,21 @@ function addon:UpdateHasteRating()
     local current = UnitSpellHaste("player")
 
     local m = mean(v)
-    local lust = self:IsBloodlust(v, current)
+    local maybeLust = self:IsMaybeBloodlust(v, current)
 
     if options.debug then
         self:Printf("New rating: %0.2f, mean: %0.2f, bloodlust: %s", current, m, tostring(lust))
     end
 
     -- START detection
-    if not self.bloodlustActive and lust then
-        if options.chat then
-            self:Printf("Bloodlust detected")
+    if not self.bloodlustActive and maybeLust then
+        if options.debug then
+            self:Printf("Detected (maybe) a haste spike")
         end
 
-        self.bloodlustActive = true
+        self:StartWatching()
+        self.maybeHasteDetected = true
         self.lockedBaseline = m
-
-		self:PlayConfiguredSoundAndChannel()
-
         return -- IMPORTANT: do not contaminate baseline
     end
 
@@ -152,6 +200,8 @@ function addon:UpdateHasteRating()
             end
 
             self.bloodlustActive = false
+            self.maybeHasteDetected = false
+            self.maybeSatedDetected = false
             self.lockedBaseline = nil
 
             -- Resume baseline updates immediately
@@ -166,6 +216,31 @@ function addon:UpdateHasteRating()
     v[3] = v[4]
     v[4] = v[5]
     v[5] = current
+end
+
+function addon:UNIT_AURA(event, unit)
+    if unit ~= "player" then return end
+
+    local auras = C_UnitAuras.GetUnitAuras(unit, "HARMFUL", 4, Enum.UnitAuraSortRule.ExpirationOnly, Enum.UnitAuraSortDirection.Reverse)
+    local newAuras = {}
+
+    for _, aura in ipairs(auras) do
+        table.insert(newAuras, aura.auraInstanceID)
+    end
+
+    local previous = self.previous
+    local current = table.concat(newAuras, ":")
+
+    if previous ~= current then
+        local options = self.db.profile
+        if options.debug then
+            self:Printf("Detected (maybe) Sated")
+        end
+
+        self:StartWatching()
+        self.maybeSatedDetected = true
+        self.previous = current
+    end
 end
 
 function addon:ResetHasteAndBloodlust()
