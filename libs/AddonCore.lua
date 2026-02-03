@@ -21,6 +21,7 @@ local addonName = select(1, ...)
 
 ---@class AddonCore
 ---@field RegisterEvent fun(self: AddonCore, event: string, handler: EventHandler?)
+---@field RegisterUnitEvent fun(self: AddonCore, event: string, handler: EventHandler?, ...: string)
 ---@field UnregisterEvent fun(self: AddonCore, event: string, handler: EventHandler?)
 ---@field APIIsTrue fun(self:AddonCore, val: any): boolean
 ---@field ProjectIsRetail fun(self: AddonCore): boolean
@@ -184,23 +185,67 @@ local eventFrame = CreateFrame("Frame", addonName .. "EventFrame", UIParent)
 local eventMap = {}
 local EventedMixin = {}
 
--- Allow multiple handlers to be registered, called in registration order
-function EventedMixin:RegisterEvent(event, handler)
-    local handler = handler and handler or event
-    if eventMap[event] then
-        local found = false
+local function createHandlerObject(self, handler, units)
+    local obj = {}
+    if type(handler) == "function" then
+        obj.type = "func"
+        obj.func = handler
+    elseif type(handler) == "string" then
+        obj.type = "method"
+        obj.key = handler
+        obj.obj = self
+    end
 
-        for idx, value in ipairs(eventMap[event]) do
-            if type(handler) == "function" and value == handler then
-                found = true
-            elseif type(handler) == "string" and type(value) == "table" then
-                -- Method call, so make sure obj matches as well
-                if value.obj == self and value.key == handler then
-                    found = true
-                end
+    if units then
+        obj.units = {unpack(units)}
+    end
+
+    return obj
+end
+
+-- Find all existing registered units and add any new ones from newUnits
+local function getUnitArgTable(eventHandlers, newUnits)
+    local units = {}
+    for _, value in ipairs(eventHandlers) do
+        if value.units then
+            for _, unit in ipairs(value.units) do
+                units[unit] = true
             end
         end
+    end
 
+    for _, unit in ipairs(newUnits) do
+        units[unit] = true
+    end
+
+    local result = {}
+    for unit in pairs(units) do
+        table.insert(result, unit)
+    end
+
+    return result
+end
+
+local function findHandlerIdx(self, eventHandlers, handler)
+    for idx, value in ipairs(eventHandlers) do
+        if type(handler) == "function" and value.func == handler then
+            return idx
+        elseif type(handler) == "string" and value.obj == self and value.key == handler then
+            return idx
+        end
+    end
+    return nil
+end
+
+local function isHandlerFound(self, eventHandlers, handler)
+    local idx = findHandlerIdx(self, eventHandlers, handler)
+    return idx ~= nil
+end
+
+local function registerEvent(self, event, handler, units)
+    local handler = handler and handler or event
+    if eventMap[event] then
+        local found = isHandlerFound(self, eventMap, handler)
         if found then
             assert(eventMap[event] == nil, string.format("Attempt to re-register event '%s' with handler '%s'", tostring(event), tostring(handler)))
         end
@@ -208,20 +253,27 @@ function EventedMixin:RegisterEvent(event, handler)
 
     eventMap[event] = eventMap[event] or {}
 
-    -- Convert handler to a table if it's a string
-    if type(handler) == "string" then
-        handler = {
-            type = "method",
-            key = handler,
-            obj = self,
-        }
-    end
+    -- Convert handler to a table
+    local handlerObj = createHandlerObject(self, handler, units)
+    table.insert(eventMap[event], handlerObj)
 
-    table.insert(eventMap[event], handler)
-
-    if #eventMap[event] == 1 then
+    if units then
+        -- Always need to update registration just in case
+        local unitArgs = getUnitArgTable(eventMap[event], units)
+        eventFrame:RegisterUnitEvent(event, unpack(unitArgs))
+    elseif #eventMap[event] == 1 then
         eventFrame:RegisterEvent(event)
     end
+end
+
+-- Allow multiple handlers to be registered, called in registration order
+function EventedMixin:RegisterEvent(event, handler)
+    return registerEvent(self, event, handler)
+end
+
+-- The same as above, but UnitEvents specifically, and handle registration correctly
+function EventedMixin:RegisterUnitEvent(event, handler, ...)
+    return registerEvent(self, event, handler, {...})
 end
 
 -- Remove event registration for a specific handler, idempotent
@@ -229,32 +281,30 @@ function EventedMixin:UnregisterEvent(event, handler)
     assert(type(event) == "string", "Invalid argument to 'UnregisterEvent'")
 
     local handler = handler and handler or event
-    if eventMap[event] then
-        local foundIdx = nil
-        for idx, value in ipairs(eventMap[event]) do
-            if type(handler) == "function" and value == handler then
-                foundIdx = idx
-            elseif type(handler) == "string" and type(value) == "table" and value.key == handler then
-                foundIdx = idx
-            end
-        end
 
-        if foundIdx and foundIdx > 0 then
-            table.remove(eventMap[event], foundIdx)
-        end
+    assert(eventMap[event] ~= nil, string.format("Attempt to un-register non-registered event '%s', with handler '%s'", tostring(event), tostring(handler)))
+    if eventMap[event] then
+        local foundIdx = findHandlerIdx(self, eventMap, handler)
+        assert(foundIdx ~= nil, string.format("Attempt to un-register event '%s' with non-registered handler '%s'", tostring(event), tostring(handler)))
+
+        table.remove(eventMap[event], foundIdx)
 
         if #eventMap[event] == 0 then
             eventMap[event] = nil
             eventFrame:UnregisterEvent(event)
+        elseif handler.units then
+            -- Always need to update registration just in case
+            local unitArgs = getUnitArgTable(eventMap[event])
+            eventFrame:RegisterUnitEvent(event, unpack(unitArgs))
         end
     end
 end
 
-eventFrame:SetScript("OnEvent", function(frame, event, ...)
+eventFrame:SetScript("OnEvent", function(_, event, ...)
     local handlers = eventMap[event]
     if not handlers then return end
 
-    for idx, handler in ipairs(handlers) do
+    for _, handler in ipairs(handlers) do
         local handler_t = type(handler)
         if handler_t == "function" then
             xpcall(handler, errorHandler, event, ...)
