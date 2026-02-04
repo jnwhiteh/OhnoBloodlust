@@ -9,6 +9,8 @@
 ## X-Localizations: enUS, enGB
 ## X-CompatibleLocales: enUS, enGB
 
+## X-Curse-Project-ID: 1451562
+
 libs\AddonCore.lua
 libs\AceDB-3.0\AceDB-3.0.lua
 
