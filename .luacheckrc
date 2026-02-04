@@ -24,4 +24,7 @@ globals = {
     "StopSound",
 
     "LibStub",
+    "Enum",
+    "C_UnitAuras",
+    "C_Timer",
 }

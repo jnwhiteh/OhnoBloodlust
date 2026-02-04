@@ -1,6 +1,9 @@
 {
   "Lua.diagnostics.globals": [
+    "C_Timer",
+    "C_UnitAuras",
     "CreateSettingsButtonInitializer",
+    "Enum",
     "FormatPercentage",
     "LibStub",
     "MinimalSliderWithSteppersMixin",
