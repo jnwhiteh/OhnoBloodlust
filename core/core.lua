@@ -81,6 +81,8 @@ function addon:Enable()
 
         self:SetHasteBaseline()
         self:UpdateHasteRating()
+
+        self.previous = self:GetAuras()
     end)
 
     self.maybeHaste = false
@@ -96,7 +98,7 @@ function addon.Timer_Callback(timer)
         timer:Cancel()
     end
 
-    if timer.count <= 0 then
+    if timer.count <= 1 then
         if addon.db.profile.debug then
             self:Printf("Timer expired: maybeHaste: %s, maybeSated: %s", tostring(self.maybeHaste), tostring(self.maybeSated))
         end
@@ -142,7 +144,7 @@ function addon:IsMaybeBloodlust(v, current)
 
     local spike_ratio = options.spike_ratio / 100
     local jump_ratio = options.jump_ratio / 100
-    return ratio >= spike_ratio and jump >= jump_ratio
+    return ratio >= spike_ratio and jump >= jump_ratio, ratio, jump
 end
 
 function addon:UpdateHasteRating()
@@ -156,7 +158,7 @@ function addon:UpdateHasteRating()
     local current = UnitSpellHaste("player")
 
     local m = mean(v)
-    local maybeLust = self:IsMaybeBloodlust(v, current)
+    local maybeLust, ratio, jump = self:IsMaybeBloodlust(v, current)
 
     -- START detection
     if not self.maybeHaste and maybeLust then
@@ -169,7 +171,7 @@ function addon:UpdateHasteRating()
         self:StartTimer()
 
         if options.debug and current ~= v[5] then
-            self:Printf("New rating: %0.2f, mean: %0.2f, maybeHaste: %s, maybeSated", current, m, tostring(self.maybeHaste), tostring(self.maybeSated))
+            self:Printf("New rating: %0.2f, mean: %0.2f, ratio: %0.2f, jump: %0.2f, maybeHaste: %s, maybeSated: %s", current, m, ratio, jump, tostring(self.maybeHaste), tostring(self.maybeSated))
         end
         return -- IMPORTANT: do not contaminate baseline
     end
@@ -188,7 +190,7 @@ function addon:UpdateHasteRating()
     end
 
     if options.debug and current ~= v[5] then
-        self:Printf("New rating: %0.2f, mean: %0.2f, maybeLust: %s", current, m, tostring(maybeLust))
+        self:Printf("New rating: %0.2f, mean: %0.2f, ratio: %0.2f, jump: %0.2f, maybeHaste: %s, maybeSated: %s", current, m, ratio, jump, tostring(self.maybeHaste), tostring(self.maybeSated))
     end
 
     -- Normal baseline update
@@ -249,14 +251,13 @@ local function maybeSatedInAuras(previous, current)
     end
 end
 
+function addon:GetAuras()
+    return C_UnitAuras.GetUnitAuras("player", "HARMFUL", 4, Enum.UnitAuraSortRule.ExpirationOnly, Enum.UnitAuraSortDirection.Reverse)
+end
+
 function addon:UNIT_AURA(event, unit)
     if unit ~= "player" then return end
-    local current = C_UnitAuras.GetUnitAuras(unit, "HARMFUL", 4, Enum.UnitAuraSortRule.ExpirationOnly, Enum.UnitAuraSortDirection.Reverse)
-
-    if not self.previous then
-        self.previous = current
-    end
-
+    local current = self:GetAuras()
     local maybeSated = maybeSatedInAuras(self.previous, current)
 
     if maybeSated then
