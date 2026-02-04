@@ -90,9 +90,16 @@ end
 function addon.Timer_Callback(timer)
     local self = addon
 
-    self:Printf("Tick: maybeHaste: %s, maybeSated: %s", tostring(self.maybeHaste), tostring(self.maybeSated))
+    timer.count = timer.count - 1
     if self.maybeHaste and self.maybeSated then
         self:StartBloodlust()
+        timer:Cancel()
+    end
+
+    if timer.count <= 0 then
+        if addon.db.profile.debug then
+            self:Printf("Timer expired: maybeHaste: %s, maybeSated: %s", tostring(self.maybeHaste), tostring(self.maybeSated))
+        end
         timer:Cancel()
     end
 end
@@ -100,9 +107,11 @@ end
 function addon:StartTimer()
     if self.timer and not self.timer:IsCancelled() then return end
 
-    self:Printf("Started new timer")
+    if self.db.profile.debug then
+        self:Printf("Started new timer to watch...")
+    end
     self.timer = C_Timer.NewTicker(0.1, self.Timer_Callback, 15)
-    self.timer.start = GetTime()
+    self.timer.count = 15
 end
 
 function addon:StopTimer()
@@ -242,8 +251,12 @@ end
 
 function addon:UNIT_AURA(event, unit)
     if unit ~= "player" then return end
-
     local current = C_UnitAuras.GetUnitAuras(unit, "HARMFUL", 4, Enum.UnitAuraSortRule.ExpirationOnly, Enum.UnitAuraSortDirection.Reverse)
+
+    if not self.previous then
+        self.previous = current
+    end
+
     local maybeSated = maybeSatedInAuras(self.previous, current)
 
     if maybeSated then
