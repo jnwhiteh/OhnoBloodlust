@@ -202,7 +202,9 @@ function addon:UpdateHasteRating()
 end
 
 function addon:StartBloodlust()
-    self:Printf("Detected Bloodlust!")
+    if self.db.profile.chat then
+        self:Printf("Detected Bloodlust!")
+    end
 
     local v = self.values
     local m = mean(v)
