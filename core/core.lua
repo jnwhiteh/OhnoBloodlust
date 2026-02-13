@@ -7,9 +7,17 @@ local addon = select(2, ...)
 
 local L = addon.L
 
+local CUSTOM_MP3_KEY = "CUSTOM MP3"
+local CUSTOM_OGG_KEY = "CUSTOM OGG"
+local RANDOM_KEY = "RANDOM"
+
 function addon:Initialize()
     self.soundRegistry = {
-        ["FORTHEHORDE"] = {
+        [RANDOM_KEY] = {
+            name = L["Random: A random sound each time (excluding custom)"],
+            sort_rank = 0,
+        },
+         ["FORTHEHORDE"] = {
             name = L["BLOODLUST - FOR THE HORDE"],
             file = "Interface\\AddOns\\OhnoBloodlust\\sounds\\BLOODLUST - FOR THE HORDE.ogg",
         },
@@ -29,16 +37,26 @@ function addon:Initialize()
             name = L["TIME WARP - GO GO GO"],
             file = "Interface\\AddOns\\OhnoBloodlust\\sounds\\TIME WARP - GO GO GO.ogg",
         },
-        ["CUSTOM OGG"] = {
-            name = L["Custom sound file at Interface\\Sounds\\bloodlust.ogg"],
+        [CUSTOM_OGG_KEY] = {
+            name = L["Custom OGG sound file at Interface\\Sounds\\bloodlust.ogg"],
             file = "Interface\\Sounds\\bloodlust.ogg",
+            sort_rank = 1,
         },
-        ["CUSTOM MP3"] = {
-            name = L["Custom sound file at Interface\\Sounds\\bloodlust.mp3"],
+        [CUSTOM_MP3_KEY] = {
+            name = L["Custom MP3 sound file at Interface\\Sounds\\bloodlust.mp3"],
             file = "Interface\\Sounds\\bloodlust.mp3",
+            sort_rank = 1,
         },
-    }
+   }
+
     self.defaultSound = "FORTHEHORSE"
+
+    self.randomChoices = {}
+    for k in pairs(self.soundRegistry) do
+        if k ~= CUSTOM_MP3_KEY and k ~= CUSTOM_OGG_KEY and k ~= RANDOM_KEY then
+            table.insert(self.randomChoices, k)
+        end
+    end
 
     self.channelRegistry = {
         ["Master"] = L["Master"],
@@ -284,9 +302,23 @@ function addon:PLAYER_REGEN_ENABLED()
     self.lockedBaseline = nil
 end
 
+function addon:GetRandomSoundFile()
+    local choices = self.randomChoices
+    local idx = math.random(#choices)
+    local value = choices[idx]
+
+    return self.soundRegistry[value].file
+end
+
 function addon:PlayConfiguredSoundAndChannel()
     local options = self.db.profile
-	local soundFile = self.soundRegistry[options.sound].file
+    local soundFile
+
+    if options.sound == RANDOM_KEY then
+        soundFile = self:GetRandomSoundFile()
+    else
+        soundFile = self.soundRegistry[options.sound].file
+    end
 	local channel = options.channel
 
 	if self.soundHandle then

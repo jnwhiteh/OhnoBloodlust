@@ -174,7 +174,21 @@ function addon:SetupOptions()
         table.insert(soundOptions, {key = key, name = opts.name})
     end
 
-    table.sort(soundOptions, function(a, b) return a.name < b.name end)
+    local soundOptionComparator = function(opta,optb)
+        local a = opta.key
+        local b = optb.key
+        local ra = self.soundRegistry[a].sort_rank or 2
+        local rb = self.soundRegistry[b].sort_rank or 2
+
+        if ra ~= rb then
+            return ra < rb
+        end
+
+        local namea = (self.soundRegistry[a].name or ""):lower()
+        local nameb = (self.soundRegistry[b].name or ""):lower()
+        return namea < nameb
+    end
+    table.sort(soundOptions, soundOptionComparator)
 
     createDropdown(
         category,

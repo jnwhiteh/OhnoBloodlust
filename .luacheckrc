@@ -14,6 +14,7 @@ ignore = {
 }
 globals = {
     "strsplit",
+    "math",
 
     "FormatPercentage",
     "MinimalSliderWithSteppersMixin",
