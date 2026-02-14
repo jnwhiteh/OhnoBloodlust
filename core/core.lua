@@ -92,30 +92,25 @@ function addon:Initialize()
     self.db = LibStub("AceDB-3.0"):New("OhnoBloodlustDB", self.defaults, true)
 
     self.visual = CreateFrame("Frame", "OhnoBloodlustVisual", UIParent)
-    self.visual:SetSize(48, 48)
-
-    self.visual.icon = self.visual:CreateTexture(nil, "ARTWORK")
-    self.visual.icon:SetTexture("Interface\\Icons\\spell_nature_bloodlust")
-    self.visual.icon:SetAllPoints()
+    self.visual:SetSize(200, 48)
 
     self.visual.text = self.visual:CreateFontString(nil, "ARTWORK")
     local text = self.visual.text
     text:SetFont("Fonts\\FRIZQT__.TTF", 48, "OUTLINE")
     text:SetPoint("CENTER")
 
-    self.visual.text:SetText(L["Bloodlust!!! (maybe???)"])
-    self.visual.text:SetPoint("LEFT", self.visual, "RIGHT", 5, 0)
+    self.visual.text:SetText(L["|TInterface\\Icons\\spell_nature_bloodlust:18|t Bloodlust!!! (maybe???)"])
+    self.visual.text:SetPoint("CENTER", self.visual, "CENTER", 0, 0)
 
     self.visual:SetPoint("CENTER", 0, 100)
     local scale = self.visual:GetEffectiveScale()
-    local iconSize = self.visual.icon:GetWidth()
     local textSize = self.visual.text:GetWidth()
-    local offset = (iconSize + textSize + 5) * scale
+    local offset = (textSize) * scale
 
     self.defaultPosition = {
         point = "CENTER",
-        x = math.floor(offset / 2) * -1,
-        y = 100,
+        y = 285,
+        x = 0,
     }
 
     self.visual:Hide()
