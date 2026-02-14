@@ -133,6 +133,15 @@ function addon:SetupOptions()
         L["A message will be shown every time the player's haste rating changes, this can be spammy"]
     )
 
+    createCheckbox(
+        category,
+        "VISUAL",
+        "visual",
+        addon.defaults.profile.visual,
+        L["Show an icon and message when detected"],
+        L["When bloodlust is detected an icon and message will appear. You can move this using Edit Mode"]
+    )
+
     createSlider(
         category,
         "SPIKE_RATIO",

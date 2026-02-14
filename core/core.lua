@@ -7,6 +7,8 @@ local addon = select(2, ...)
 
 local L = addon.L
 
+local LEM = LibStub("LibEditMode")
+
 local CUSTOM_MP3_KEY = "CUSTOM MP3"
 local CUSTOM_OGG_KEY = "CUSTOM OGG"
 local RANDOM_KEY = "RANDOM"
@@ -75,16 +77,53 @@ function addon:Initialize()
 
             chat = false,
             debug = false,
+            visual = false,
 
             detection = {
                 spike_ratio = 160,
                 jump_ratio = 140,
                 fade_ratio = 115,
             },
+            layoutPositions = {
+            },
         }
     }
 
     self.db = LibStub("AceDB-3.0"):New("OhnoBloodlustDB", self.defaults, true)
+
+    self.visual = CreateFrame("Frame", "OhnoBloodlustVisual", UIParent)
+    self.visual:SetSize(48, 48)
+
+    self.visual.icon = self.visual:CreateTexture(nil, "ARTWORK")
+    self.visual.icon:SetTexture("Interface\\Icons\\spell_nature_bloodlust")
+    self.visual.icon:SetAllPoints()
+
+    self.visual.text = self.visual:CreateFontString(nil, "ARTWORK")
+    local text = self.visual.text
+    text:SetFont("Fonts\\FRIZQT__.TTF", 48, "OUTLINE")
+    text:SetPoint("CENTER")
+
+    self.visual.text:SetText(L["Bloodlust!!! (maybe???)"])
+    self.visual.text:SetPoint("LEFT", self.visual, "RIGHT", 5, 0)
+
+    self.visual:SetPoint("CENTER", 0, 100)
+    local scale = self.visual:GetEffectiveScale()
+    local iconSize = self.visual.icon:GetWidth()
+    local textSize = self.visual.text:GetWidth()
+    local offset = (iconSize + textSize + 5) * scale
+
+    self.defaultPosition = {
+        point = "CENTER",
+        x = math.floor(offset / 2) * -1,
+        y = 100,
+    }
+
+    self.visual:Hide()
+
+    LEM:AddFrame(self.visual, self.OnPositionChanged, self.defaultPosition)
+    LEM:RegisterCallback('enter', self.OnEditModeEnter)
+    LEM:RegisterCallback('exit', self.OnEditModeExit)
+    LEM:RegisterCallback('layout', self.OnLayoutChanged)
 end
 
 function addon:Enable()
@@ -105,6 +144,40 @@ function addon:Enable()
 
     self.maybeHaste = false
     self.maybeSated = false
+end
+
+function addon.OnPositionChanged(frame, layoutName, point, x, y)
+    local self = addon
+
+    if not self.db.profile.layoutPositions[layoutName] then
+        self.db.profile.layoutPositions[layoutName] = {}
+    end
+    self.db.profile.layoutPositions[layoutName].point = point
+    self.db.profile.layoutPositions[layoutName].x = x
+    self.db.profile.layoutPositions[layoutName].y = y
+end
+
+function addon.OnEditModeEnter()
+    local self = addon
+    self.visual:Show()
+end
+
+function addon.OnEditModeExit()
+    local self = addon
+    if not self.active then
+        self.visual:Hide()
+    end
+end
+
+function addon.OnLayoutChanged(layoutName)
+    local self = addon
+    local config = self.db.profile.layoutPositions[layoutName]
+    if not config then
+        config = self.defaultPosition
+    end
+
+    self.visual:ClearAllPoints()
+    self.visual:SetPoint(config.point, config.x, config.y)
 end
 
 function addon.Timer_Callback(timer)
@@ -231,6 +304,12 @@ function addon:StartBloodlust()
     self.active = true
 
     self:PlayConfiguredSoundAndChannel()
+    if self.db.profile.visual then
+        self.visual:Show()
+        C_Timer.After(5.0, function()
+            self.visual:Hide()
+        end)
+    end
 end
 
 function addon:StopBloodlust()
@@ -242,6 +321,8 @@ function addon:StopBloodlust()
     if self.db.profile.chat then
         self:Printf("Bloodlust faded")
     end
+
+    self.visual:Hide()
 end
 
 -- Compare the stored auras with the new ones, and guess if we have sated :)

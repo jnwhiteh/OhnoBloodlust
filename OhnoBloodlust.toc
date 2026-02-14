@@ -13,6 +13,8 @@
 
 libs\AddonCore.lua
 libs\AceDB-3.0\AceDB-3.0.lua
+libs\LibStub\LibStub.lua
+libs\LibEditMode\embed.xml
 
 i18n\Localization.enUS.lua
 

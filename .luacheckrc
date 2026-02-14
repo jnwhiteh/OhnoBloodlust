@@ -28,4 +28,6 @@ globals = {
     "Enum",
     "C_UnitAuras",
     "C_Timer",
+    "CreateFrame",
+    "UIParent",
 }
