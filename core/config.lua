@@ -55,27 +55,6 @@ local function createCheckbox(category, proxyKey, profilePath, defaultValue, nam
     Settings.CreateCheckbox(category, setting, tooltip)
 end
 
-local function FormatScaledPercentage(value)
-    return FormatPercentage(value / 100)
-end
-
-local function createSlider(category, proxyKey, profilePath, defaultValue, minValue, maxValue, step, name, tooltip)
-    local getValue = getValueFromAddonProfile(profilePath)
-    local setValue = setValueInAddonProfile(profilePath)
-    local setting = Settings.RegisterProxySetting(
-        category,
-        string.format("%s_PROXY_%s", string.upper(addonName), proxyKey),
-        Settings.VarType.Number,
-        name,
-        defaultValue,
-        getValue,
-        setValue)
-
-    local options = Settings.CreateSliderOptions(minValue, maxValue, step)
-    options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, FormatScaledPercentage)
-    Settings.CreateSlider(category, setting, options, tooltip)
-end
-
 local function createDropdown(category, proxyKey, profilePath, defaultValue, values, name, tooltip)
     local getValue = getValueFromAddonProfile(profilePath)
     local setValue = setValueInAddonProfile(profilePath)
@@ -121,16 +100,7 @@ function addon:SetupOptions()
         "chat",
         addon.defaults.profile.chat,
         L["Show bloodlust detection messages in chat"],
-        L["A message will be shown in chat when the addon detects a Bloodlist-like effect and when it fades"]
-    )
-
-    createCheckbox(
-        category,
-        "DEBUG",
-        "debug",
-        addon.defaults.profile.debug,
-        L["Show debug messages in chat"],
-        L["A message will be shown every time the player's haste rating changes, this can be spammy"]
+        L["A message will be shown in chat when the addon detects a Bloodlust-like effect and when it fades"]
     )
 
     createCheckbox(
@@ -140,42 +110,6 @@ function addon:SetupOptions()
         addon.defaults.profile.visual,
         L["Show an icon and message when detected"],
         L["When bloodlust is detected an icon and message will appear. You can move this using Edit Mode"]
-    )
-
-    createSlider(
-        category,
-        "SPIKE_RATIO",
-        "detection.spike_ratio",
-        addon.defaults.profile.detection.spike_ratio,
-        140,
-        240,
-        1.0,
-        L["Bloodlust detection spike ratio"],
-        L["This option specifies the ratio against baseline to detect the use of Bloodlust-like effects. Setting it lower will trigger more often on other types of effects, like Power Infusion.\n\nDefault value: %s"]:format(tostring(addon.defaults.profile.detection.spike_ratio))
-    )
-
-    createSlider(
-        category,
-        "JUMP_RATIO",
-        "detection.jump_ratio",
-        addon.defaults.profile.detection.jump_ratio,
-        110,
-        160,
-        1.0,
-        L["Haste jump/spike ratio"],
-        L["This ratio can prevent gradual haste increases from triggering detection.\n\nDefault value: %s"]:format(tostring(addon.defaults.profile.detection.jump_ratio))
-    )
-
-    createSlider(
-        category,
-        "FADE_RATIO",
-        "detection.fade_ratio",
-        addon.defaults.profile.detection.fade_ratio,
-        105,
-        130,
-        1.0,
-        L["Fade ratio"],
-        L["This option specifies how close to normal your haste must return before the Bloodlust-like event is considered over.\n\nDefault value: %s"]:format(tostring(addon.defaults.profile.detection.fade_ratio))
     )
 
     local soundOptions = {}

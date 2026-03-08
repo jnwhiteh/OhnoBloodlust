@@ -20,7 +20,7 @@ local work = {}
 for k,v in pairs(strings) do table.insert(work, k) end
 table.sort(work)
 
-print("local addonName, addon = ...")
+print("local addon = select(2, ...)")
 print("local baseLocale = {")
 for idx,match in ipairs(work) do
     print(string.format("    [\"%s\"] = \"%s\",", match, match))

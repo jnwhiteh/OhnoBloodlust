@@ -13,6 +13,16 @@ local CUSTOM_MP3_KEY = "CUSTOM MP3"
 local CUSTOM_OGG_KEY = "CUSTOM OGG"
 local RANDOM_KEY = "RANDOM"
 
+local BLOODLUST_DEBUFFS = {
+    [57723]  = true, -- Exhaustion: Shaman Heroism (Alliance) — the Alliance counterpart to Bloodlust, same cooldown family; both 57723 and 57724 prevent reuse of the effect
+    [57724]  = true, -- Sated: Shaman Bloodlust (Horde)
+    [80354]  = true, -- Temporal Displacement: Mage Time Warp
+    [95809]  = true, -- Insanity: Hunter pet Ancient Hysteria
+    [160455] = true, -- Fatigued: Hunter pet Primal Rage
+    [264689] = true, -- Fatigued: Hunter pet Primal Rage (variant)
+    [390435] = true, -- Exhaustion: Evoker Fury of the Aspects
+}
+
 function addon:Initialize()
     self.soundRegistry = {
         [RANDOM_KEY] = {
@@ -76,14 +86,8 @@ function addon:Initialize()
             channel = self.defaultChannel,
 
             chat = false,
-            debug = false,
             visual = false,
 
-            detection = {
-                spike_ratio = 160,
-                jump_ratio = 140,
-                fade_ratio = 115,
-            },
             layoutPositions = {
             },
         }
@@ -99,13 +103,10 @@ function addon:Initialize()
     text:SetFont("Fonts\\FRIZQT__.TTF", 48, "OUTLINE")
     text:SetPoint("CENTER")
 
-    self.visual.text:SetText(L["|TInterface\\Icons\\spell_nature_bloodlust:18|t Bloodlust!!! (maybe???)"])
+    self.visual.text:SetText(L["|TInterface\\Icons\\spell_nature_bloodlust:18|t Bloodlust!!!"])
     self.visual.text:SetPoint("CENTER", self.visual, "CENTER", 0, 0)
 
     self.visual:SetPoint("CENTER", 0, 100)
-    local scale = self.visual:GetEffectiveScale()
-    local textSize = self.visual.text:GetWidth()
-    local offset = (textSize) * scale
 
     self.defaultPosition = {
         point = "CENTER",
@@ -122,23 +123,9 @@ function addon:Initialize()
 end
 
 function addon:Enable()
-    -- We're going to wait until after we load to kick in and register things <3
     self:SetupOptions()
-
-    C_Timer.After(2.0, function()
-        self:RegisterEvent("COMBAT_RATING_UPDATE", "UpdateHasteRating")
-        self:RegisterEvent("UNIT_SPELL_HASTE", "UpdateHasteRating")
-        self:RegisterEvent("PLAYER_REGEN_ENABLED", "PLAYER_REGEN_ENABLED")
-        self:RegisterUnitEvent("UNIT_AURA", "UNIT_AURA", "player")
-
-        self:SetHasteBaseline()
-        self:UpdateHasteRating()
-
-        self.previous = self:GetAuras()
-    end)
-
-    self.maybeHaste = false
-    self.maybeSated = false
+    self:RegisterUnitEvent("UNIT_AURA", "UNIT_AURA", "player")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "PLAYER_REGEN_ENABLED")
 end
 
 function addon.OnPositionChanged(frame, layoutName, point, x, y)
@@ -175,116 +162,25 @@ function addon.OnLayoutChanged(layoutName)
     self.visual:SetPoint(config.point, config.x, config.y)
 end
 
-function addon.Timer_Callback(timer)
-    local self = addon
+function addon:HasBloodlustDebuff()
+    for spellID in pairs(BLOODLUST_DEBUFFS) do
+        if C_UnitAuras.GetPlayerAuraBySpellID(spellID) then
+            return true
+        end
+    end
+    return false
+end
 
-    timer.count = timer.count - 1
-    if self.maybeHaste and self.maybeSated then
+function addon:UNIT_AURA(event, unit)
+    if not self.db.profile.enabled then return end
+
+    local hasBuff = self:HasBloodlustDebuff()
+
+    if hasBuff and not self.active then
         self:StartBloodlust()
-        timer:Cancel()
+    elseif not hasBuff and self.active then
+        self:StopBloodlust()
     end
-
-    if timer.count <= 1 then
-        if addon.db.profile.debug then
-            self:Printf("Timer expired: maybeHaste: %s, maybeSated: %s", tostring(self.maybeHaste), tostring(self.maybeSated))
-        end
-        timer:Cancel()
-    end
-end
-
-function addon:StartTimer()
-    if self.timer and not self.timer:IsCancelled() then return end
-
-    if self.db.profile.debug then
-        self:Printf("Started new timer to watch...")
-    end
-    self.timer = C_Timer.NewTicker(0.1, self.Timer_Callback, 15)
-    self.timer.count = 15
-end
-
-function addon:StopTimer()
-    self.timer:Cancel()
-end
-
-function addon:SetHasteBaseline()
-    local haste = UnitSpellHaste("player")
-    self.values = {haste, haste, haste, haste, haste}
-end
-
-local function mean(v)
-    local sum = 0
-    for i = 1, 5 do
-        sum = sum + v[i]
-    end
-    return sum / 5
-end
-
-function addon:IsMaybeBloodlust(v, current)
-    local options = self.db.profile.detection
-    local m = mean(v)
-
-    local maxv = math.max(v[1], v[2], v[3], v[4], v[5])
-
-    local ratio = current / m
-    local jump = current / maxv
-
-    local spike_ratio = options.spike_ratio / 100
-    local jump_ratio = options.jump_ratio / 100
-    return ratio >= spike_ratio and jump >= jump_ratio, ratio, jump
-end
-
-function addon:UpdateHasteRating()
-    local options = self.db.profile
-
-    if not options.enabled then
-        return
-    end
-
-    local v = self.values
-    local current = UnitSpellHaste("player")
-
-    local m = mean(v)
-    local maybeLust, ratio, jump = self:IsMaybeBloodlust(v, current)
-
-    -- START detection
-    if not self.maybeHaste and maybeLust then
-        if options.debug then
-            self:Printf("Detected (maybe) a haste spike")
-        end
-
-        self.lockedBaseline = m
-        self.maybeHaste = true
-        self:StartTimer()
-
-        if options.debug and current ~= v[5] then
-            self:Printf("New rating: %0.2f, mean: %0.2f, ratio: %0.2f, jump: %0.2f, maybeHaste: %s, maybeSated: %s", current, m, ratio, jump, tostring(self.maybeHaste), tostring(self.maybeSated))
-        end
-        return -- IMPORTANT: do not contaminate baseline
-    end
-
-    -- STOP detection
-    if self.active then
-        local ratio = current / self.lockedBaseline
-        local fade_ratio = options.detection.fade_ratio / 100
-
-        if ratio < fade_ratio then
-            self:StopBloodlust()
-            -- Resume baseline updates immediately
-        else
-            return -- Still active, do NOT update baseline
-        end
-    end
-
-    if options.debug and current ~= v[5] then
-        self:Printf("New rating: %0.2f, mean: %0.2f, ratio: %0.2f, jump: %0.2f, maybeHaste: %s, maybeSated: %s", current, m, ratio, jump, tostring(self.maybeHaste), tostring(self.maybeSated))
-    end
-
-    -- Normal baseline update
-    v[1] = v[2]
-    v[2] = v[3]
-    v[3] = v[4]
-    v[4] = v[5]
-    v[5] = current
 end
 
 function addon:StartBloodlust()
@@ -292,10 +188,6 @@ function addon:StartBloodlust()
         self:Printf("Detected Bloodlust!")
     end
 
-    local v = self.values
-    local m = mean(v)
-
-    self.lockedBaseline = m
     self.active = true
 
     self:PlayConfiguredSoundAndChannel()
@@ -308,9 +200,6 @@ function addon:StartBloodlust()
 end
 
 function addon:StopBloodlust()
-    self.maybeHaste = false
-    self.maybeSated = false
-    self.lockedBaseline = nil
     self.active = false
 
     if self.db.profile.chat then
@@ -320,62 +209,8 @@ function addon:StopBloodlust()
     self.visual:Hide()
 end
 
--- Compare the stored auras with the new ones, and guess if we have sated :)
-local function maybeSatedInAuras(previous, current)
-    -- They should be sorted by expiration time and stable
-    -- walk through and see if we've gained a debuff in the
-    -- first few slots
-
-    local numCurrent = current and #current or 0
-    local numPrevious = previous and #previous or 0
-
-    --print(numCurrent, numPrevious)
-
-    if numCurrent > numPrevious then
-        -- We gained a buff, good enough for me :)
-        return true
-    elseif numCurrent < numPrevious then
-        -- A debuff fell off, probably not Sated
-        return false
-    end
-
-    -- Check to see if any of the auras changed (or changes order)
-    for idx = 1, math.min(numCurrent, numPrevious) do
-        if previous[idx].auraInstanceID ~= current[idx].auraInstanceID then
-            return true
-        end
-    end
-end
-
-function addon:GetAuras()
-    return C_UnitAuras.GetUnitAuras("player", "HARMFUL", 4, Enum.UnitAuraSortRule.ExpirationOnly, Enum.UnitAuraSortDirection.Reverse)
-end
-
-function addon:UNIT_AURA(event, unit)
-    if unit ~= "player" then return end
-    local current = self:GetAuras()
-    local maybeSated = maybeSatedInAuras(self.previous, current)
-
-    if maybeSated then
-        local options = self.db.profile
-        if options.debug then
-            self:Printf("Detected (maybe) Sated")
-        end
-
-        self.maybeSated = true
-        self:StartTimer()
-    end
-
-    -- Store what we have for next time
-    self.previous = current
-end
-
 function addon:PLAYER_REGEN_ENABLED()
-    -- If we just exited combat, we can probably safely reset things
     self.active = false
-    self.maybeHaste = false
-    self.maybeSated = false
-    self.lockedBaseline = nil
 end
 
 function addon:GetRandomSoundFile()
@@ -408,4 +243,3 @@ function addon:PlayConfiguredSoundAndChannel()
         end
 	end
 end
-
