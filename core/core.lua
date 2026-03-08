@@ -124,6 +124,7 @@ end
 
 function addon:Enable()
     self:SetupOptions()
+    self.active = self:HasBloodlustDebuff()
     self:RegisterUnitEvent("UNIT_AURA", "UNIT_AURA", "player")
     self:RegisterEvent("PLAYER_REGEN_ENABLED", "PLAYER_REGEN_ENABLED")
 end
@@ -210,7 +211,7 @@ function addon:StopBloodlust()
 end
 
 function addon:PLAYER_REGEN_ENABLED()
-    self.active = false
+    self.active = self:HasBloodlustDebuff()
 end
 
 function addon:GetRandomSoundFile()
