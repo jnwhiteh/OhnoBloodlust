@@ -1,9 +1,3 @@
-package-as: OhnoBloodlust 
-enable-nolib-creation: no
-wowi-create-changelog: no
-tools-used:
-    - libstub
-    - libeditmode
 ignore:
     - .github
     - .vscode
